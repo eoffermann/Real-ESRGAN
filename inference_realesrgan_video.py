@@ -322,6 +322,93 @@ def run(args):
         shutil.rmtree(osp.join(args.output, f'{args.video_name}_inp_tmp_videos'))
     os.remove(f'{args.output}/{args.video_name}_vidlist.txt')
 
+def run_with_params(
+    input: str = 'inputs',
+    model_name: str = 'RealESRGAN_x4plus',
+    output: str = 'results',
+    denoise_strength: float = 0.5,
+    outscale: float = 4,
+    suffix: str = 'out',
+    tile: int = 0,
+    tile_pad: int = 10,
+    pre_pad: int = 0,
+    face_enhance: bool = False,
+    fp32: bool = False,
+    fps: float = None,
+    ffmpeg_bin: str = 'ffmpeg',
+    extract_frame_first: bool = False,
+    num_process_per_gpu: int = 1,
+    alpha_upsampler: str = 'realesrgan',
+    ext: str = 'auto',
+):
+    """
+    Function to run the script programmatically with the same arguments as the command line.
+
+    Args:
+        input (str): Input video, image, or folder path.
+        model_name (str): Model name to use for inference.
+        output (str): Output folder path.
+        denoise_strength (float): Denoise strength for general models.
+        outscale (float): Upscaling factor.
+        suffix (str): Suffix for output files.
+        tile (int): Tile size for inference.
+        tile_pad (int): Padding for tiles.
+        pre_pad (int): Pre-padding for inference.
+        face_enhance (bool): Whether to use face enhancement.
+        fp32 (bool): Use fp32 precision (default is fp16).
+        fps (float): FPS for output video.
+        ffmpeg_bin (str): Path to ffmpeg binary.
+        extract_frame_first (bool): Whether to extract frames before processing.
+        num_process_per_gpu (int): Number of processes per GPU.
+        alpha_upsampler (str): Upsampler for alpha channels.
+        ext (str): Output image extension.
+    """
+    # Create a namespace object mimicking argparse arguments
+    class Args:
+        pass
+
+    args = Args()
+    args.input = input
+    args.model_name = model_name
+    args.output = output
+    args.denoise_strength = denoise_strength
+    args.outscale = outscale
+    args.suffix = suffix
+    args.tile = tile
+    args.tile_pad = tile_pad
+    args.pre_pad = pre_pad
+    args.face_enhance = face_enhance
+    args.fp32 = fp32
+    args.fps = fps
+    args.ffmpeg_bin = ffmpeg_bin
+    args.extract_frame_first = extract_frame_first
+    args.num_process_per_gpu = num_process_per_gpu
+    args.alpha_upsampler = alpha_upsampler
+    args.ext = ext
+
+    # Adjust input path formatting
+    args.input = args.input.rstrip('/').rstrip('\\')
+    os.makedirs(args.output, exist_ok=True)
+
+    # Determine if the input is a video
+    if mimetypes.guess_type(args.input)[0] is not None and mimetypes.guess_type(args.input)[0].startswith('video'):
+        is_video = True
+    else:
+        is_video = False
+
+    # Handle FLV input conversion
+    if is_video and args.input.endswith('.flv'):
+        mp4_path = args.input.replace('.flv', '.mp4')
+        os.system(f'{args.ffmpeg_bin} -i {args.input} -codec copy {mp4_path}')
+        args.input = mp4_path
+
+    # Disable frame extraction for non-video inputs
+    if args.extract_frame_first and not is_video:
+        args.extract_frame_first = False
+
+    # Call the main `run` function with the prepared arguments
+    run(args)
+
 
 def main():
     """Inference demo for Real-ESRGAN.
@@ -337,7 +424,7 @@ def main():
         default='realesr-animevideov3',
         help=('Model names: realesr-animevideov3 | RealESRGAN_x4plus_anime_6B | RealESRGAN_x4plus | RealESRNet_x4plus |'
               ' RealESRGAN_x2plus | realesr-general-x4v3'
-              'Default:realesr-animevideov3'))
+              ' Default:realesr-animevideov3'))
     parser.add_argument('-o', '--output', type=str, default='results', help='Output folder')
     parser.add_argument(
         '-dn',
